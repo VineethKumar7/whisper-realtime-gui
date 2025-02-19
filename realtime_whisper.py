@@ -1,3 +1,4 @@
+# realtime_whisper.py
 import sounddevice as sd
 import numpy as np
 import whisper
@@ -6,66 +7,67 @@ import threading
 import time
 from datetime import datetime
 
-# Khởi tạo model Whisper (có thể chọn các model khác như "base", "small", "medium", "large")
-model = whisper.load_model("base")
+# Load Whisper model (use at least 'medium' for translation)
+model = whisper.load_model("medium")
 
-# Cấu hình thu âm
-samplerate = 16000  # Whisper yêu cầu 16kHz
-channels = 1        # Mono
-blocksize = 30 * samplerate  # Buffer cho mỗi 30 giây
+# Audio capture settings
+samplerate = 16000  # Whisper requires 16kHz
+channels = 1
+blocksize = 30 * samplerate  # Buffer for every 30 seconds
 audio_queue = queue.Queue()
 recording = True
 
 def audio_callback(indata, frames, time, status):
-    """Callback function để nhận audio data"""
+    """Callback function to capture audio"""
     if status:
         print(status)
     audio_queue.put(indata.copy())
 
 def process_audio():
-    """Xử lý audio và thực hiện nhận dạng"""
+    """Process audio and transcribe in real time"""
     while recording:
         if not audio_queue.empty():
-            # Lấy audio data từ queue
+            # Get audio data from queue
             audio_data = audio_queue.get()
             
-            # Chuẩn bị audio data cho Whisper
+            # Flatten the audio for Whisper
             audio_data = audio_data.flatten().astype(np.float32)
             
             try:
-                # Thực hiện nhận dạng
-                result = model.transcribe(audio_data, language="fr")
+                # Transcribe German speech and translate it into English
+                result = model.transcribe(audio_data, language="de", task="translate")
                 
-                # In kết quả với timestamp
+                # Print results with timestamps
                 if result["text"].strip():
                     timestamp = datetime.now().strftime("%H:%M:%S")
-                    print(f"[{timestamp}] {result['text']}")
+                    print(f"[{timestamp}] {result['text']}")  # Translated English text
             except Exception as e:
-                print(f"Lỗi khi nhận dạng: {str(e)}")
+                print(f"Error during recognition: {str(e)}")
 
 def main():
     global recording
     
-    print("Bắt đầu thu âm từ system audio... (Nhấn Ctrl+C để dừng)")
+    print("Starting real-time German-to-English transcription... (Press Ctrl+C to stop)")
     
-    # Tạo thread xử lý audio
+    # Start audio processing thread
     process_thread = threading.Thread(target=process_audio)
     process_thread.start()
     
     try:
-        # Bắt đầu thu âm
+        # Start recording
         with sd.InputStream(samplerate=samplerate,
-                          channels=channels,
-                          callback=audio_callback,
-                          blocksize=blocksize):
+                            channels=channels,
+                            callback=audio_callback,
+                            blocksize=blocksize):
             while True:
                 time.sleep(0.1)
     except KeyboardInterrupt:
-        print("\nDừng thu âm...")
+        print("\nStopping transcription...")
         recording = False
         process_thread.join()
     except Exception as e:
-        print(f"Lỗi: {str(e)}")
+        print(f"Error: {str(e)}")
 
 if __name__ == "__main__":
     main()
+

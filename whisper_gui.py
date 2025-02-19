@@ -1,3 +1,4 @@
+# whishper_gui.py
 import sys
 import sounddevice as sd
 import numpy as np
